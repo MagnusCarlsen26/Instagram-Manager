@@ -1,59 +1,88 @@
 require('dotenv').config();
 const { IgApiClient } = require('instagram-private-api');
 const fs = require('fs');
+const { log } = require('console');
 const ig = new IgApiClient();
+
 const username = process.env.IG_USERNAME;
 const password = process.env.IG_PASSWORD;
 
-(async () => {
-
-  if (!username || !password) {
-    console.error('Please set IG_USERNAME and IG_PASSWORD in your environment variables or .env file.');
-    process.exit(1);
-  }
-
+async function login() {
   ig.state.generateDevice(username);
-  try {
-    await ig.simulate.preLoginFlow();
-    const loginResponse = await ig.account.login(username, password);
+  await ig.simulate.preLoginFlow();
+  return ig.account.login(username, password);
+}
 
-    if (loginResponse && loginResponse.pk) { 
-        console.log("Login successful!");
-        console.log("User Info:", loginResponse); 
-      } else {
-        console.error("Login failed:", loginResponse);
-        process.exit(1);
-      }
-  } catch (error) {
-    console.error('Error during login:', error.message);
-    process.exit(1);
+async function fetchAllUserPosts(userId) {
+  const feed = ig.feed.user(userId);
+  const allPosts = [];
+
+  do {
+    const items = await feed.items();
+    allPosts.push(...items);
+  } while (feed.isMoreAvailable());
+
+  return allPosts;
+}
+
+async function logPostDetails(post) {
+  console.log(`Post ID: ${post.id}`);
+  console.log(`Taken at ${post.taken_at}`)
+  console.log(`Caption ${post.caption?.text || ""}`)
+  if (post.image_versions2 && post.image_versions2.candidates) {
+    const imgUrl = post.image_versions2.candidates[0]
+    console.log(imgUrl.url)
+  } else {
+      console.log("Image URLs not available for this post.");
   }
+  const arr = post.likers
+  arr.forEach( element => {
+    console.log(`Fullname ${element.full_name}`)
+    console.log(`Username ${element.username}`)
+    console.log(`ProfilePic ${element.profile_pic_url}`)
+  })
+  console.log('--------------------------');
 
-  // 3. Prepare Media and Caption
-  const mediaType = 'image'; // 'image' or 'video' 
-  const mediaPath = mediaType === 'image' 
-    ? 'images.jpg' // Replace with your actual image path
-    : 'path/to/your/video.mp4'; // Replace with your actual video path
+}
+
+async function publishMedia(mediaType, mediaPath, caption) {
   const mediaBuffer = fs.readFileSync(mediaPath);
-  const caption = `Check out this ${mediaType}! #${mediaType}oftheday`; // Customize your caption
+  const publishOptions = { file: mediaBuffer, caption };
 
   try {
-    let publishResult;
-    if (mediaType === 'image') {
-      publishResult = await ig.publish.photo({
-        file: mediaBuffer,
-        caption,
-      });
-    } else if (mediaType === 'video') {
-      publishResult = await ig.publish.video({
-        video: mediaBuffer,
-        caption,
-      });
-    }
-
+    const publishResult = await ig.publish[mediaType === 'image' ? 'photo' : 'video'](publishOptions);
     console.log(`${mediaType.toUpperCase()} published successfully:`, publishResult);
   } catch (error) {
     console.error(`Error publishing ${mediaType}:`, error.message);
-    console.error(error.response)
+    console.error(error.response); // Include the API response for debugging
+  }
+}
+
+(async () => {
+  try {
+    const loginResponse = await login();
+
+    if (loginResponse && loginResponse.pk) {
+      console.log("Login successful!");
+      const userId = loginResponse.pk;
+
+      try {
+        const allPosts = await fetchAllUserPosts(userId);
+        allPosts.forEach(logPostDetails)
+
+      } catch (error) {
+        console.error("Error fetching posts:", error.message);
+        console.error(error.response);
+      }
+
+      // await publishMedia('image', 'images.jpg', 'Bitter Rain'); // Example usage
+
+    } else {
+      console.error("Login failed:", loginResponse);
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error('Error during login:', error.message);
+    process.exit(1);
   }
 })();
