@@ -1,17 +1,17 @@
 import 'dotenv/config';  // Load environment variables
-import { IgApiClient } from 'instagram-private-api';
-import fs from 'fs';
+import { IgApiClient  } from 'instagram-private-api';
 import express from 'express'
+import fs from 'fs'
 import cors from 'cors'
 import multer from 'multer'
-
+const storage = multer.memoryStorage();
 const upload = multer()
 const app = express()
-const ig = new IgApiClient()
+const ig = new IgApiClient() 
 
 app.use(cors())
 app.use(express.json())
-
+  
 
 const username = process.env.IG_USERNAME;
 const password = process.env.IG_PASSWORD;
@@ -22,11 +22,10 @@ async function login() {
   return ig.account.login(username, password);
 }
 
-// userId
 app.post('/fetchALlPosts', async(req,res) => {
     try {
-
         const {userId} = req.body
+        console.log(`fetch ALl posts ${userId}`)
         console.log(req.body)
         const feed = ig.feed.user(userId);
         const posts = [];
@@ -44,89 +43,6 @@ app.post('/fetchALlPosts', async(req,res) => {
     }
 })
 
-// Frontend API
-// app.post('/logPostDetails', async(req,res) => {
-//     console.log(`Post ID: ${post.id}`)
-//     console.log(`Taken at ${post.taken_at}`)
-//     console.log(`Caption ${post.caption?.text || ""}`)
-//     if (post.image_versions2 && post.image_versions2.candidates) {
-//       const imgUrl = post.image_versions2.candidates[0]
-//       console.log(imgUrl.url)
-//     } else {
-//         console.log("Image URLs not available for this post.")
-//     }
-//     post.likers.forEach( element => {
-//       console.log(`Fullname ${element.full_name}`)
-//       console.log(`Username ${element.username}`)
-//       console.log(`ProfilePic ${element.profile_pic_url}`)
-//     })
-//     console.log('--------------------------')
-// })
-
-// mediaType = [video,photo,story,carousel] , mediapath , caption
-app.post('/publishMedia', upload.single('media') , async(req,res) => {
-    try {
-        const {mediaType,caption} = req.body
-        console.log(mediaType)
-        if (!req.file) {
-            return res.status(400).json({ success: false, message: 'No media file provided' });
-        }
-        const mediaBuffer = req.file.buffer
-        const publishOptions = { file: mediaBuffer, caption }
-        const publishResult = await ig.publish[mediaType](publishOptions)
-        console.log(`${mediaType} Uploaded`)
-        res.json({sucess : true})
-    } catch (error) {  
-        res.json({success : false , message : error})
-        console.error(`Error publishing ${mediaType}:`, error)
-        console.error(error.response) 
-    }
-})
-
-// async function fetchUnreadDirectMessages(ig) {
-//   const directInboxFeed = ig.feed.directInbox()
-//   const threads = []
-//   const unreadMessages = []
-
-//   do {
-//     const newThreads = await directInboxFeed.items()
-//     threads.push(...newThreads)
-//   } while (directInboxFeed.isMoreAvailable())
-
-//   for (const thread of threads) {
-//     const threadEntity = DirectThreadEntity.createFromThread(ig, thread)
-//     const messages = await threadEntity.fetchItems()
-
-//     messages.forEach(message => {
-//       if (!message.read_state) {  
-//         unreadMessages.push({
-//           threadId: thread.thread_id,
-//           sender: message.user_id,
-//           timestamp: message.timestamp,
-//           text: message.text,
-//         })
-//       }
-//     })
-//   }
-
-//   return unreadMessages
-// }
-
-// username , message
-app.post('/sendDM',async(req,res) => {
-    try{
-        console.log(req.body)
-        const {username,message} = req.body
-        const userId = await ig.user.getIdByUsername(username)
-        const thread = ig.entity.directThread([userId.toString()])
-        await thread.broadcastText(message)
-        res.json({ success : true })
-    }catch(error) {
-        res.json({ success : true , message : error })
-    }
-})
-
-// post.id
 app.post('/fetchPostComments',async(req,res) => {
     try {
         const {postId} = req.body
@@ -145,7 +61,6 @@ app.post('/fetchPostComments',async(req,res) => {
       }
 })
 
-// post.id ,  , message
 app.post('/replyToComment', async(req,res) => {
     const {postId,commentId,replyText} = req.body
     try {
@@ -160,23 +75,94 @@ app.post('/replyToComment', async(req,res) => {
       catch (error) { res.json({ success : false , message : error }) }
 })
 
-// Frontend API
-// async function manageCommentsForPost(post) {
-//   const postId = post.id;
-//   const comments = await fetchPostComments(postId);
+app.post('/publishPhoto', upload.single('image'), async (req, res) => {
+    try {
+        const { caption } = req.body;
+        const imageFile = req.file.buffer;
 
-//   for (const comment of comments) {
-//     logPostDetails(post); // (Your existing function to log post details)
-//     console.log(`Comment by @${comment.user.username}: ${comment.text}`);
-    
-//     // Example comment actions (you'll need to customize this logic)
-//     if (true) {
-//       replyToComment(postId, comment.pk, "Thanks for your question! I'll get back to you soon.");
-//     } else if (comment.user.username === 'spammer_account') {
-//       deleteComment(postId, comment.pk);
-//     }
-//   }
-// }
+        await ig.publish.photo({
+            file: imageFile,
+            caption: caption,
+            // usertags : ,
+            // location
+        });
+        res.json({ success: true });
+    } catch (error) {
+        res.json({ success: false, message: error });
+        console.error(error);
+    }
+});  
+
+app.post('/publishVideo', upload.fields([{ name: 'video', maxCount: 1 }, { name: 'image', maxCount: 1 }]), async (req, res) => {
+    try {
+        console.log('Video')
+        const { caption, mediaType } = req.body;
+        const videoFile = req.files['video'][0].buffer; // Get video file
+        const coverImage = req.files['image'][0].buffer; // Get cover image (optional)
+
+        await ig.publish.video({
+            video: videoFile,
+            coverImage: coverImage, // Only for reels
+            caption: caption
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        res.json({ success: false, message: error });
+        console.error(error);
+    }
+});
+
+app.post('/publishAlbum', upload.array('image'), async (req, res) => {
+    try {
+        const { caption } = req.body;
+        const imageFiles = req.files.map(file => file.buffer);
+
+        await ig.publish.album({
+            items: imageFiles.map(imageFile => ({
+                image: imageFile
+            })),
+            caption: caption,
+            // location: ,
+        });
+        res.json({ success: true });
+    } catch (error) {
+        res.json({ success: false, message: error });
+        console.error(error);
+    }
+});
+
+app.post('/publishStoryPhoto', upload.array('image'), async (req, res) => {
+    try {
+        const { caption } = req.body;
+        const imageFiles = req.files.map(file => file.buffer);
+
+        await ig.publish.album({
+            items: imageFiles.map(imageFile => ({
+                image: imageFile
+            })),
+            caption: caption,
+            // location: ,
+        });
+        res.json({ success: true });
+    } catch (error) {
+        res.json({ success: false, message: error });
+        console.error(error);
+    }
+});
+
+app.post('/sendDM',async(req,res) => {
+    try{
+        console.log(req.body)
+        const {username,message} = req.body
+        const userId = await ig.user.getIdByUsername(username)
+        const thread = ig.entity.directThread([userId.toString()])
+        await thread.broadcastText(message)
+        res.json({ success : true })
+    }catch(error) {
+        res.json({ success : true , message : error })
+    }
+})
 
 app.post('/loginNow',async(req,res) => {
     try {
@@ -189,12 +175,12 @@ app.post('/loginNow',async(req,res) => {
         else { console.error("Login failed:", loginResponse) }
     }
     catch (error) { 
-        console.error('Error during login:', error)
+        console.error('Error during login:', error.message)
     }  
 })
-
-const PORT = process.env.PORT || 5000
-
+  
+const PORT = process.env.PORT || 5000 
+  
 app.listen(PORT, () => {  
   console.log(`Server is running on port ${PORT}`)
 })
