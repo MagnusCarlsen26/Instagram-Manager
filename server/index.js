@@ -4,6 +4,7 @@ import express from 'express'
 import fs from 'fs'
 import cors from 'cors'
 import multer from 'multer'
+
 const storage = multer.memoryStorage();
 const upload = multer()
 const app = express()
@@ -11,12 +12,11 @@ const ig = new IgApiClient()
 
 app.use(cors())
 app.use(express.json())
-  
 
 const username = process.env.IG_USERNAME;
 const password = process.env.IG_PASSWORD;
 
-async function login() {
+async function login(username,password) {
   ig.state.generateDevice(username);
   await ig.simulate.preLoginFlow();
   return ig.account.login(username, password);
@@ -76,34 +76,81 @@ app.post('/replyToComment', async(req,res) => {
 })
 
 app.post('/publishPhoto', upload.single('image'), async (req, res) => {
-    try {
-        const { caption } = req.body;
-        const imageFile = req.file.buffer;
-
-        await ig.publish.photo({
-            file: imageFile,
-            caption: caption,
-            // usertags : ,
-            // location
-        });
-        res.json({ success: true });
-    } catch (error) {
-        res.json({ success: false, message: error });
-        console.error(error);
+    const photo = async() => {
+        try {
+            const { caption } = req.body;
+            const imageFile = req.file.buffer;
+    
+            await ig.publish.photo({
+                file: imageFile,
+                caption: caption,
+                // usertags : ,
+                // location
+            });
+            res.json({ success: true });
+        } catch (error) {
+            if (error.message === 'Error: getaddrinfo ENOTFOUND i.instagram.com') {
+                console.log('retrying')
+                await video()
+            } else {
+                console.log(error)
+                res.send( {success : false , message : error} )
+            }
+        }
     }
+    try {
+        await photo()
+    } catch (error) {
+        res.send( { success : false , message : error } )
+        console.log(error)
+    }
+
 });  
 
 app.post('/publishVideo', upload.fields([{ name: 'video', maxCount: 1 }, { name: 'image', maxCount: 1 }]), async (req, res) => {
+    const video = async() => {
+        try {
+            console.log('Video')
+            const { caption } = req.body;
+            const videoFile = req.files['video'][0].buffer; // Get video file
+            const coverImage = req.files['image'][0].buffer; // Get cover image (optional)
+    
+            await ig.publish.video({
+                video: videoFile,
+                coverImage: coverImage, // Only for reels
+                caption: caption
+            });
+    
+            res.json({ success: true });
+        } catch (error) {
+            if (error.message === 'Error: getaddrinfo ENOTFOUND i.instagram.com') {
+                console.log('retrying')
+                await video()
+            } else {
+                console.log(error)
+                res.send( {success : false , message : error} )
+            }
+        }
+    }
     try {
-        console.log('Video')
-        const { caption, mediaType } = req.body;
+        await video()
+    } catch (error) {
+        res.send( { success : false , message : error } )
+        console.log(error)
+    }
+
+});
+
+app.post('/publishStoryVideo', upload.fields([{ name: 'video', maxCount: 1 }, { name: 'image', maxCount: 1 }]), async (req, res) => {
+    try {
+        console.log('StoryVideo')
+        const { caption } = req.body;
         const videoFile = req.files['video'][0].buffer; // Get video file
         const coverImage = req.files['image'][0].buffer; // Get cover image (optional)
 
-        await ig.publish.video({
+        await ig.publish.story({
             video: videoFile,
-            coverImage: coverImage, // Only for reels
-            caption: caption
+            coverImage: coverImage,
         });
 
         res.json({ success: true });
@@ -165,20 +212,39 @@ app.post('/sendDM',async(req,res) => {
 })
 
 app.post('/loginNow',async(req,res) => {
-    try {
-        const loginResponse = await login()
-    
-        if (loginResponse && loginResponse.pk) {
-            const userId = loginResponse.pk
-            res.send({ success : true , message : { userId } })
-        } 
-        else { console.error("Login failed:", loginResponse) }
+
+    const loginNow = async(username,password) => {
+        try {
+
+            const loginResponse = await login(username,password)
+            
+            if (loginResponse && loginResponse.pk) {
+                const userId = loginResponse.pk
+                res.send({ success : true , message : { userId } })
+            } 
+            else { res.send({ success : false , message : loginResponse }) }
+        } catch (error) {
+            if (error.message === 'Error: getaddrinfo ENOTFOUND i.instagram.com') {
+                console.log('retrying')
+                await loginNow(username,password)
+            } else {
+                console.log(error)
+                res.send( {success : false , message : error} )
+            }
+        }
     }
-    catch (error) { 
-        console.error('Error during login:', error.message)
-    }  
+    try {
+        await loginNow(username,password)
+    } catch (error) {
+        res.send( { success : false , message : error } )
+        console.log(error)
+    }
 })
-  
+
+app.get('/hello',(req,res)=> {
+    res.send("HEL WORLD")
+})
+
 const PORT = process.env.PORT || 5000 
   
 app.listen(PORT, () => {  

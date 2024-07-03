@@ -10,10 +10,11 @@ function App() {
     const [selectedImages, setSelectedImages] = useState([]);
     const [selectedVideos, setSelectedVideos] = useState([]);
     const [mediaType,setMediaType] = useState(null)
-
+    const [isPosted,setIsPosted] = useState(false)
+    const [isError,setError] = useState('')
     const fetchALlPosts = async(userId) => {
         try {
-            const response = await axios.post('http://localhost:5000/fetchAllPosts',{ userId })
+            const response = await axios.post('https://instagram-umber-phi.vercel.app/fetchAllPosts',{ userId })
             if ( response.data.success ) {
                 console.log(response.data.message.posts)
                 setPosts(response.data.message.posts)
@@ -27,7 +28,7 @@ function App() {
 
     const loginNow = async() => {
         try {
-            const response = await axios.post('http://localhost:5000/loginNow')
+            const response = await axios.post('https://instagram-umber-phi.vercel.app/loginNow')
             if ( response.data.success ) {
                 console.log("Login Successful")
                 console.log(response.data.message.userId)
@@ -61,18 +62,20 @@ function App() {
             console.log(`${key}: ${value}`);
         });
         try {
-          const response = await fetch(`http://localhost:5000/publish${mediaType}`, {
+          const response = await fetch(`https://instagram-umber-phi.vercel.app/publish${mediaType}`, {
             method: 'POST',
             body: formData
           });
-    
-          if (response.data.success) {
-                console.log('Post Uploaded')
+          const IsSuccess = await response.json();
+          if (IsSuccess) {
+            setIsPosted( prev => true )
           } else {
-            console.log('error')
+            setIsPosted( prev => false )
+            setError(prev => IsSuccess.message)
           }
         } catch (error) {
           console.error('An error occurred during upload');
+          console.error(error)
         }
       };
 
@@ -82,31 +85,31 @@ function App() {
             {
                 userId ? "" : <button type={'button'} onClick={loginNow} >Login to ig</button>
             }
-            {
-                posts ? posts.map( post => {
-                    // var imgUrl
+            {/* { */}
+                {/* posts ? posts.map( post => { */}
+                    {// var imgUrl
                     // if (post.image_versions2 && post.image_versions2.candidates) {
                     //     imgUrl = post.image_versions2.candidates[0]
                     // } else {
                     //     console.log("Image URLs not available for this post.")
-                    // }
-                    return(
-                        <div key ={post.id}>
-                            <p>Taken at {post.taken_at}</p>
-                            <p>Caption {post.caption?.text || ""}</p>
-                            {/* <img src={imgUrl.url} alt=''></img> */}
-                            <p>Liked by :</p>
-                            {
-                                post.likers.map( liker => 
-                                    <div key={post.id}>
-                                        <p>Fullname ${liker.full_name}</p>
-                                        <p>Username ${liker.username}</p>
-                                        <img src={liker.profile_pic_url} alt=''></img>
-                                    </div>
-                                )
-                            }
-                        </div>
-                )} ) : ""
+                    // }}
+                //     return(
+                //         <div key ={post.id}>
+                //             <p>Taken at {post.taken_at}</p>
+                //             <p>Caption {post.caption?.text || ""}</p>
+                //             {/* <img src={imgUrl.url} alt=''></img> */}
+                //             <p>Liked by :</p>
+                //             {
+                //                 post.likers.map( liker => 
+                //                     <div key={post.id}>
+                //                         <p>Fullname ${liker.full_name}</p>
+                //                         <p>Username ${liker.username}</p>
+                //                         <img src={liker.profile_pic_url} alt=''></img>
+                //                     </div>
+                //                 )
+                //             }
+                //         </div>
+                // )} ) : ""
             }
       <form onSubmit={handleSubmit}>
         <textarea value={mediaType} onChange={(e) => setMediaType(e.target.value)} placeholder="Media Type" />
@@ -149,6 +152,9 @@ function App() {
         <button type="submit">Publish</button>
       </form>
         </div>
+        {
+            isPosted ? "Posted to Instagram :)" : isError
+        }
         </div>
     );
 }
