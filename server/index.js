@@ -15,7 +15,7 @@ app.use(express.json())
 
 const username = process.env.IG_USERNAME;
 const password = process.env.IG_PASSWORD;
-
+console.log(username)
 async function login(username,password) {
   ig.state.generateDevice(username);
   await ig.simulate.preLoginFlow();

@@ -14,7 +14,7 @@ function App() {
     const [isError,setError] = useState('')
     const fetchALlPosts = async(userId) => {
         try {
-            const response = await axios.post('https://instagram-umber-phi.vercel.app/fetchAllPosts',{ userId })
+            const response = await axios.post('https://instagramserver.vercel.app/fetchAllPosts',{ userId })
             if ( response.data.success ) {
                 console.log(response.data.message.posts)
                 setPosts(response.data.message.posts)
@@ -28,7 +28,7 @@ function App() {
 
     const loginNow = async() => {
         try {
-            const response = await axios.post('https://instagram-umber-phi.vercel.app/loginNow')
+            const response = await axios.post('https://instagramserver.vercel.app/loginNow')
             if ( response.data.success ) {
                 console.log("Login Successful")
                 console.log(response.data.message.userId)
@@ -62,7 +62,7 @@ function App() {
             console.log(`${key}: ${value}`);
         });
         try {
-          const response = await fetch(`https://instagram-umber-phi.vercel.app/publish${mediaType}`, {
+          const response = await fetch(`https://instagramserver.vercel.app/publish${mediaType}`, {
             method: 'POST',
             body: formData
           });
